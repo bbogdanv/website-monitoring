@@ -1,0 +1,27 @@
+services:
+  monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mini-monitor
+    restart: unless-stopped
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - CHAT_ID=${CHAT_ID}
+      - CONFIG_PATH=/app/targets.yml
+      - DB_PATH=/app/data/monitor.db
+    volumes:
+      # Mount configuration file (can be edited without rebuild)
+      - ./targets.yml:/app/targets.yml:ro
+      # Mount .env file for environment variables
+      - ./.env:/app/.env:ro
+      # Persistent data directory (database and logs)
+      - ./data:/app/data
+    # Health check (optional)
+    healthcheck:
+      test: ["CMD", "test", "-f", "/app/data/monitor.db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+

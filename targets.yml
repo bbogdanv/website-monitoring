@@ -1,0 +1,173 @@
+defaults:
+  timeout_sec: 20
+  user_agent: "mini-monitor/1.0"
+  follow_redirects: true
+  compressed: true
+  retention_days: 14
+  max_workers: 6
+  max_checks_per_run: 10
+
+alert_profiles:
+  default:
+    warn_ttfb_sec: 1.5
+    crit_ttfb_sec: 3.0
+    fail_count_to_alert: 2
+    recover_count: 2
+    remind_every_sec: 3600
+    cooldown_sec: 300
+
+sites:
+  - name: "JFJ Fund"
+    base: "https://jfj.fund"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  - name: "Ковчег"
+    base: "https://kovcheg.live"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  - name: "MBK PRODUCTIONS"
+    base: "https://mbkproductions.co.uk"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  - name: "gardarika-book.org"
+    base: "https://gardarika-book.org"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  - name: "antiwarcommittee.info"
+    base: "https://antiwarcommittee.info"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  - name: "shmidtconference.org"
+    base: "https://shmidtconference.org"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  - name: "newgenerationeurope.org"
+    base: "https://newgenerationeurope.org"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  - name: "firstflight.today"
+    base: "https://firstflight.today"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  - name: "rassvet.world"
+    base: "https://rassvet.world"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  - name: "ruskd.com"
+    base: "https://ruskd.com"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  - name: "anastasiafilm.com"
+    base: "https://anastasiafilm.com"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  - name: "aftertherainfilm.com"
+    base: "https://aftertherainfilm.com"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  - name: "jfj.academy"
+    base: "https://jfj.academy"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  - name: "openmedia.io"
+    base: "https://openmedia.io"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  - name: "documentaryshowcase.co.uk"
+    base: "https://documentaryshowcase.co.uk"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  - name: "journalist.name"
+    base: "https://journalist.name"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  - name: "nestcentre.org"
+    base: "https://nestcentre.org"
+    pages:
+      - name: "home"
+        path: "/"
+        every_sec: 300
+        token: "<!-- MONITOR:home id=abc123 -->"
+        expect_http: [200]
+        alert_profile: "default"
+  

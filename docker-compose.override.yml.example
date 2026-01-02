@@ -1,0 +1,17 @@
+# Пример файла для переопределения настроек docker-compose.yml
+# Скопируйте этот файл в docker-compose.override.yml для локальных настроек
+
+version: '3.8'
+
+services:
+  monitor:
+    # Можно переопределить переменные окружения
+    environment:
+      - CONFIG_PATH=/app/targets.yml
+      - DB_PATH=/app/data/monitor.db
+      # Добавьте дополнительные переменные при необходимости
+    
+    # Можно добавить дополнительные volumes
+    # volumes:
+    #   - ./custom-config.yml:/app/custom-config.yml:ro
+
