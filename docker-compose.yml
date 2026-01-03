@@ -5,9 +5,9 @@ services:
       dockerfile: Dockerfile
     container_name: mini-monitor
     restart: unless-stopped
+    env_file:
+      - ./.env
     environment:
-      - BOT_TOKEN=${BOT_TOKEN}
-      - CHAT_ID=${CHAT_ID}
       - CONFIG_PATH=/app/targets.yml
       - DB_PATH=/app/data/monitor.db
     volumes:
@@ -24,4 +24,26 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: telegram-bot
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      - CONFIG_PATH=/app/targets.yml
+      - DB_PATH=/app/data/monitor.db
+    volumes:
+      # Mount configuration file
+      - ./targets.yml:/app/targets.yml:ro
+      # Mount .env file for environment variables
+      - ./.env:/app/.env:ro
+      # Shared data directory (database)
+      - ./data:/app/data
+    command: python3 telegram_bot.py
+    depends_on:
+      - monitor
 
