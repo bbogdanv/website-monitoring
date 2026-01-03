@@ -1,0 +1,38 @@
+services:
+  website-monitoring:
+    image: finallot/website-monitoring:latest
+    container_name: website-monitoring
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      - CONFIG_PATH=/app/targets.yml
+      - DB_PATH=/app/data/monitor.db
+    volumes:
+      - ./targets.yml:/app/targets.yml:ro
+      - ./.env:/app/.env:ro
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "test", "-f", "/app/data/monitor.db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  telegram-bot:
+    image: finallot/website-monitoring:latest
+    container_name: telegram-bot
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      - CONFIG_PATH=/app/targets.yml
+      - DB_PATH=/app/data/monitor.db
+    volumes:
+      - ./targets.yml:/app/targets.yml:ro
+      - ./.env:/app/.env:ro
+      - ./data:/app/data
+    command: python3 telegram_bot.py
+    depends_on:
+      - website-monitoring
+
