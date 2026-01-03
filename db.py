@@ -103,6 +103,38 @@ class Database:
         row = cursor.fetchone()
         return row['last_ts'] if row and row['last_ts'] else None
     
+    def get_last_check(self, target_id: str) -> Optional[CheckResult]:
+        """Get last check result for a target."""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT * FROM checks
+            WHERE target_id = ?
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """, (target_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            return None
+        
+        return CheckResult(
+            timestamp=row['timestamp'],
+            target_id=row['target_id'],
+            site_name=row['site_name'],
+            page_name=row['page_name'],
+            url=row['url'],
+            ok=bool(row['ok']),
+            state=row['state'],
+            http_code=row['http_code'],
+            dns=row['dns'],
+            connect=row['connect'],
+            tls=row['tls'],
+            ttfb=row['ttfb'],
+            total=row['total'],
+            size=row['size'],
+            error=row['error'],
+        )
+    
     def save_check(self, result: CheckResult):
         """Save a check result to the database."""
         cursor = self.conn.cursor()

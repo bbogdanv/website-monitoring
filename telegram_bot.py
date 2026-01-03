@@ -65,7 +65,6 @@ class TelegramBot:
         
         for page in self.config.pages:
             last_check = self.db.get_last_check(page.target_id)
-            alert_state = self.db.get_alert_state(page.target_id)
             
             if last_check:
                 # Determine emoji based on state
@@ -76,42 +75,29 @@ class TelegramBot:
                 else:
                     emoji = '🔴'
                 
-                # Format time
-                check_time = time.strftime('%H:%M:%S', time.localtime(last_check.timestamp))
-                time_ago = int(time.time() - last_check.timestamp)
-                
-                # Build status line
-                status_line = f"{emoji} <b>{page.site_name}</b>"
-                if page.name != 'home':
-                    status_line += f" ({page.name})"
-                
-                status_line += f"\n   {last_check.state}"
-                
-                if last_check.ttfb is not None:
-                    status_line += f" | TTFB: {last_check.ttfb:.2f}s"
-                if last_check.total is not None:
-                    status_line += f" | Total: {last_check.total:.2f}s"
+                # Build status line: emoji + URL + HTTP + TTFB + Total + Error
+                status_line = f"{emoji} {last_check.url}"
                 
                 if last_check.http_code:
-                    status_line += f" | HTTP: {last_check.http_code}"
+                    status_line += f" HTTP: {last_check.http_code}"
+                
+                if last_check.ttfb is not None:
+                    status_line += f" TTFB: {last_check.ttfb:.3f}s"
+                
+                if last_check.total is not None:
+                    status_line += f" Total: {last_check.total:.3f}s"
                 
                 if last_check.error:
-                    status_line += f"\n   ⚠️ {last_check.error[:50]}"
-                
-                if time_ago < 60:
-                    time_str = f"{time_ago}с назад"
-                else:
-                    time_str = f"{time_ago//60}м назад"
-                status_line += f"\n   ⏰ {check_time} ({time_str})"
+                    status_line += f" Error: {last_check.error}"
                 
                 statuses.append(status_line)
             else:
                 # No check yet
-                statuses.append(f"⚪ <b>{page.site_name}</b>\n   Не проверялся")
+                statuses.append(f"⚪ {page.url} Не проверялся")
         
         # Build message
         message = "📊 <b>Статус мониторинга</b>\n\n"
-        message += "\n\n".join(statuses)
+        message += "\n".join(statuses)
         
         # Add summary
         if statuses:
@@ -119,10 +105,7 @@ class TelegramBot:
             slow_count = sum(1 for s in statuses if '🟠' in s)
             down_count = sum(1 for s in statuses if '🔴' in s)
             
-            message += f"\n\n<b>Итого:</b>"
-            message += f"\n🟢 OK: {ok_count}"
-            message += f"\n🟠 SLOW: {slow_count}"
-            message += f"\n🔴 DOWN: {down_count}"
+            message += f"\n\n<b>Итого:</b> 🟢 {ok_count} | 🟠 {slow_count} | 🔴 {down_count}"
         
         return message
     
