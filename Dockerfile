@@ -35,6 +35,14 @@ RUN printf '#!/bin/bash\nPATH=/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:
 # Note: cron doesn't inherit environment, so we need to pass them via the script
 RUN echo "* * * * * /app/run-monitor.sh" | crontab -
 
+# Create daily reminder script
+RUN printf '#!/bin/bash\nPATH=/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin\nexport PATH\ncd /app\n/usr/local/bin/python3 daily_reminder.py >> /app/data/reminder.log 2>&1\n' > /app/run-reminder.sh && \
+    chmod +x /app/run-reminder.sh
+
+# Add daily reminder cron jobs (12:00 and 18:00)
+RUN (crontab -l 2>/dev/null; echo "0 12 * * * /app/run-reminder.sh") | crontab -
+RUN (crontab -l 2>/dev/null; echo "0 18 * * * /app/run-reminder.sh") | crontab -
+
 # Set environment variables
 ENV CONFIG_PATH=/app/targets.yml
 ENV DB_PATH=/app/data/monitor.db

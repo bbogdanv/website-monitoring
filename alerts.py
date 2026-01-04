@@ -4,16 +4,17 @@ import sys
 import time
 import requests
 from typing import Optional
-from config import AlertProfile
+from config import AlertProfile, Config
 from db import AlertState, Database
 
 
 class AlertManager:
     """Manages alerts with anti-spam and hysteresis logic."""
     
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, config: Optional[Config] = None):
         """Initialize alert manager."""
         self.db = db
+        self.config = config
         self.bot_token = os.getenv('BOT_TOKEN')
         self.chat_id = os.getenv('CHAT_ID')
         
@@ -66,38 +67,38 @@ class AlertManager:
         should_alert = False
         alert_type = None
         
+        old_state = current_state.last_state
+        
         # State transition: OK -> SLOW/DOWN
-        if current_state.last_state == 'OK' and new_state in ('SLOW', 'DOWN'):
+        if old_state == 'OK' and new_state in ('SLOW', 'DOWN'):
             if new_failures >= alert_profile.fail_count_to_alert:
                 should_alert = True
                 alert_type = 'DOWN' if new_state == 'DOWN' else 'SLOW'
         
         # State transition: SLOW/DOWN -> OK
-        elif current_state.last_state in ('SLOW', 'DOWN') and new_state == 'OK':
+        elif old_state in ('SLOW', 'DOWN') and new_state == 'OK':
             if new_successes >= alert_profile.recover_count:
                 should_alert = True
                 alert_type = 'RECOVERED'
         
+        # State transition: SLOW -> DOWN
+        elif old_state == 'SLOW' and new_state == 'DOWN':
+            if new_failures >= alert_profile.fail_count_to_alert:
+                should_alert = True
+                alert_type = 'DOWN'
+        
+        # State transition: DOWN -> SLOW
+        elif old_state == 'DOWN' and new_state == 'SLOW':
+            # SLOW is still a problem, but notify about change
+            should_alert = True
+            alert_type = 'SLOW'
+        
         # First alert for persistent problem (page was DOWN from the start)
-        elif new_state in ('SLOW', 'DOWN') and current_state.last_state in ('SLOW', 'DOWN'):
-            # If we have enough consecutive failures and never sent alert
+        elif new_state in ('SLOW', 'DOWN') and old_state in ('SLOW', 'DOWN'):
+            # Only send if never sent before and have enough failures
             if new_failures >= alert_profile.fail_count_to_alert and not current_state.last_sent_ts:
                 should_alert = True
                 alert_type = 'DOWN' if new_state == 'DOWN' else 'SLOW'
-            # Reminder: problem persists (already sent before)
-            elif current_state.last_sent_ts:
-                time_since_last = now - current_state.last_sent_ts
-                if time_since_last >= alert_profile.remind_every_sec:
-                    # Check cooldown
-                    if time_since_last >= alert_profile.cooldown_sec:
-                        should_alert = True
-                        alert_type = 'DOWN' if new_state == 'DOWN' else 'SLOW'
-        
-        # Check cooldown for any alert
-        if should_alert and current_state.last_sent_ts:
-            time_since_last = now - current_state.last_sent_ts
-            if time_since_last < alert_profile.cooldown_sec:
-                should_alert = False
         
         # Send alert if needed
         if should_alert:
@@ -197,5 +198,59 @@ class AlertManager:
             return True
         except Exception as e:
             print(f"Failed to send Telegram alert: {e}", file=sys.stderr)
+            return False
+    
+    def send_daily_reminder(self) -> bool:
+        """
+        Send daily reminder about DOWN sites at 12:00 and 18:00.
+        Returns True if reminder was sent, False otherwise.
+        """
+        if not self.bot_token or not self.chat_id:
+            return False
+        
+        if not self.config:
+            return False
+        
+        # Get all DOWN sites
+        down_sites = []
+        for page in self.config.pages:
+            alert_state = self.db.get_alert_state(page.target_id)
+            if alert_state and alert_state.last_state == 'DOWN':
+                last_check = self.db.get_last_check(page.target_id)
+                if last_check:
+                    down_sites.append((page.target_id, page.url, last_check))
+        
+        if not down_sites:
+            return False
+        
+        # Build reminder message
+        message = "⏰ <b>Напоминание: Сайты в статусе DOWN</b>\n\n"
+        
+        for target_id, url, check in down_sites:
+            emoji = '🔴'
+            message += f"{emoji} {url}"
+            if check.http_code:
+                message += f" HTTP: {check.http_code}"
+            if check.error:
+                message += f" Error: {check.error}"
+            message += "\n"
+        
+        message += f"\n<b>Всего:</b> {len(down_sites)} сайт(ов) в статусе DOWN"
+        
+        # Send via Telegram Bot API
+        url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+        data = {
+            'chat_id': self.chat_id,
+            'text': message,
+            'parse_mode': 'HTML',
+        }
+        
+        try:
+            response = requests.post(url, json=data, timeout=10)
+            response.raise_for_status()
+            result = response.json()
+            return result.get('ok', False)
+        except Exception as e:
+            print(f"Failed to send daily reminder: {e}", file=sys.stderr)
             return False
 

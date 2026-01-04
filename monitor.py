@@ -113,7 +113,7 @@ def main():
     db = Database(db_path)
     
     # Initialize alert manager
-    alert_manager = AlertManager(db)
+    alert_manager = AlertManager(db, config)
     
     # Get current time
     now = time.time()

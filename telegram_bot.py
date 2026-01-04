@@ -6,7 +6,9 @@ import requests
 from typing import Optional
 from dotenv import load_dotenv
 from config import Config
-from db import Database
+from db import Database, CheckResult
+from checker import PageChecker
+from alerts import AlertManager
 
 
 class TelegramBot:
@@ -109,6 +111,193 @@ class TelegramBot:
         
         return message
     
+    def check_single_site(self, url_or_domain: str) -> Optional[str]:
+        """
+        Check a single site by URL or domain and return status message.
+        Returns None if site not found.
+        """
+        # Normalize input
+        url_or_domain = url_or_domain.strip()
+        if not url_or_domain.startswith('http'):
+            url_or_domain = f"https://{url_or_domain}"
+        
+        # Find matching page
+        matching_page = None
+        for page in self.config.pages:
+            if page.url == url_or_domain or page.url.rstrip('/') == url_or_domain.rstrip('/'):
+                matching_page = page
+                break
+            # Also check domain
+            domain = url_or_domain.replace('https://', '').replace('http://', '').split('/')[0]
+            if domain in page.url:
+                matching_page = page
+                break
+        
+        if not matching_page:
+            return None
+        
+        # Perform check
+        try:
+            alert_profile = self.config.get_alert_profile(matching_page.alert_profile)
+            checker = PageChecker(matching_page, self.config.defaults, alert_profile)
+            ok, state, metrics = checker.check()
+            
+            now = time.time()
+            result = CheckResult(
+                timestamp=now,
+                target_id=matching_page.target_id,
+                site_name=matching_page.site_name,
+                page_name=matching_page.name,
+                url=matching_page.url,
+                ok=ok,
+                state=state,
+                http_code=metrics.http_code,
+                dns=metrics.dns,
+                connect=metrics.connect,
+                tls=metrics.tls,
+                ttfb=metrics.ttfb,
+                total=metrics.total,
+                size=metrics.size,
+                error=metrics.error,
+            )
+            
+            # Save to database
+            self.db.save_check(result)
+            
+            # Process alerts (will send notification if state changed)
+            alert_manager = AlertManager(self.db, self.config)
+            metrics_dict = {
+                'url': matching_page.url,
+                'http_code': metrics.http_code,
+                'ttfb': metrics.ttfb,
+                'total': metrics.total,
+                'error': metrics.error,
+            }
+            alert_manager.process_check_result(
+                matching_page.target_id,
+                state,
+                alert_profile,
+                metrics_dict,
+            )
+            
+            # Build status message
+            if state == 'OK':
+                emoji = '🟢'
+            elif state == 'SLOW':
+                emoji = '🟠'
+            else:
+                emoji = '🔴'
+            
+            status_line = f"{emoji} {result.url}"
+            
+            if result.http_code:
+                status_line += f" HTTP: {result.http_code}"
+            
+            if result.ttfb is not None:
+                status_line += f" TTFB: {result.ttfb:.3f}s"
+            
+            if result.total is not None:
+                status_line += f" Total: {result.total:.3f}s"
+            
+            if result.error:
+                status_line += f" Error: {result.error}"
+            
+            return status_line
+            
+        except Exception as e:
+            return f"❌ Ошибка проверки: {e}"
+    
+    def check_all_sites(self) -> str:
+        """
+        Check all sites and return status message.
+        """
+        statuses = []
+        alert_manager = AlertManager(self.db, self.config)
+        
+        for i, page in enumerate(self.config.pages, 1):
+            try:
+                alert_profile = self.config.get_alert_profile(page.alert_profile)
+                checker = PageChecker(page, self.config.defaults, alert_profile)
+                ok, state, metrics = checker.check()
+                
+                now = time.time()
+                result = CheckResult(
+                    timestamp=now,
+                    target_id=page.target_id,
+                    site_name=page.site_name,
+                    page_name=page.name,
+                    url=page.url,
+                    ok=ok,
+                    state=state,
+                    http_code=metrics.http_code,
+                    dns=metrics.dns,
+                    connect=metrics.connect,
+                    tls=metrics.tls,
+                    ttfb=metrics.ttfb,
+                    total=metrics.total,
+                    size=metrics.size,
+                    error=metrics.error,
+                )
+                
+                # Save to database
+                self.db.save_check(result)
+                
+                # Process alerts
+                metrics_dict = {
+                    'url': page.url,
+                    'http_code': metrics.http_code,
+                    'ttfb': metrics.ttfb,
+                    'total': metrics.total,
+                    'error': metrics.error,
+                }
+                alert_manager.process_check_result(
+                    page.target_id,
+                    state,
+                    alert_profile,
+                    metrics_dict,
+                )
+                
+                # Build status line
+                if state == 'OK':
+                    emoji = '🟢'
+                elif state == 'SLOW':
+                    emoji = '🟠'
+                else:
+                    emoji = '🔴'
+                
+                status_line = f"{emoji} {result.url}"
+                
+                if result.http_code:
+                    status_line += f" HTTP: {result.http_code}"
+                
+                if result.ttfb is not None:
+                    status_line += f" TTFB: {result.ttfb:.3f}s"
+                
+                if result.total is not None:
+                    status_line += f" Total: {result.total:.3f}s"
+                
+                if result.error:
+                    status_line += f" Error: {result.error}"
+                
+                statuses.append(status_line)
+                
+            except Exception as e:
+                statuses.append(f"❌ {page.url} Ошибка: {e}")
+        
+        # Build message
+        message = "📊 <b>Проверка всех сайтов</b>\n\n"
+        message += "\n".join(statuses)
+        
+        # Add summary
+        if statuses:
+            ok_count = sum(1 for s in statuses if '🟢' in s)
+            slow_count = sum(1 for s in statuses if '🟠' in s)
+            down_count = sum(1 for s in statuses if '🔴' in s)
+            
+            message += f"\n\n<b>Итого:</b> 🟢 {ok_count} | 🟠 {slow_count} | 🔴 {down_count}"
+        
+        return message
+    
     def process_updates(self):
         """Process incoming updates."""
         updates = self.get_updates()
@@ -122,13 +311,38 @@ class TelegramBot:
                 text = message.get('text', '')
                 
                 if text.startswith('/check'):
-                    status_msg = self.get_status_message()
-                    self.send_message(chat_id, status_msg)
+                    parts = text.split(None, 1)
+                    
+                    if len(parts) == 1:
+                        # /check - show current status
+                        status_msg = self.get_status_message()
+                        self.send_message(chat_id, status_msg)
+                    
+                    elif parts[1].lower() == 'all':
+                        # /check all - check all sites now
+                        self.send_message(chat_id, "⏳ Проверяю все сайты...")
+                        status_msg = self.check_all_sites()
+                        self.send_message(chat_id, status_msg)
+                    
+                    else:
+                        # /check <url> - check specific site
+                        url_or_domain = parts[1]
+                        result = self.check_single_site(url_or_domain)
+                        
+                        if result:
+                            self.send_message(chat_id, f"📊 <b>Результат проверки</b>\n\n{result}")
+                        else:
+                            self.send_message(chat_id, f"❌ Сайт не найден: {url_or_domain}\n\nИспользуйте URL или домен из списка мониторинга.")
+                
                 elif text.startswith('/start') or text.startswith('/help'):
                     help_msg = (
                         "🤖 <b>Website Monitoring Bot</b>\n\n"
                         "Доступные команды:\n"
                         "/check - показать текущий статус всех сайтов\n"
+                        "/check all - проверить все сайты прямо сейчас\n"
+                        "/check <url> - проверить конкретный сайт\n"
+                        "  Пример: /check nestcentre.org\n"
+                        "  Пример: /check https://nestcentre.org/\n"
                         "/help - показать эту справку"
                     )
                     self.send_message(chat_id, help_msg)
