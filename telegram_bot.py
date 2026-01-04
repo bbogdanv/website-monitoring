@@ -311,14 +311,15 @@ class TelegramBot:
                 text = message.get('text', '')
                 
                 if text.startswith('/check'):
-                    parts = text.split(None, 1)
+                    # Remove /check and strip whitespace
+                    command_text = text[6:].strip()  # Remove '/check' prefix
                     
-                    if len(parts) == 1:
+                    if not command_text:
                         # /check - show current status
                         status_msg = self.get_status_message()
                         self.send_message(chat_id, status_msg)
                     
-                    elif parts[1].lower() == 'all':
+                    elif command_text.lower() == 'all':
                         # /check all - check all sites now
                         self.send_message(chat_id, "⏳ Проверяю все сайты...")
                         status_msg = self.check_all_sites()
@@ -326,7 +327,7 @@ class TelegramBot:
                     
                     else:
                         # /check <url> - check specific site
-                        url_or_domain = parts[1]
+                        url_or_domain = command_text
                         result = self.check_single_site(url_or_domain)
                         
                         if result:
